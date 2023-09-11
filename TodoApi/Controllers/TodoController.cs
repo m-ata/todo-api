@@ -9,19 +9,21 @@ using TodoApi.Models;
 
 namespace TodoApi.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/")]
     [ApiController]
     public class TodoController : ControllerBase
     {
         private readonly TodoContext _context;
+        private readonly ILogger<TodoController> _logger;
 
-        public TodoController(TodoContext context)
+        public TodoController(TodoContext context, ILogger<TodoController> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
-        // GET: api/Todo
-        [HttpGet]
+        // GET: api/todos
+        [HttpGet("todos")]
         public async Task<ActionResult<IEnumerable<TodoModel>>> GetTodos()
         {
           if (_context.Todos == null)
@@ -31,28 +33,23 @@ namespace TodoApi.Controllers
             return await _context.Todos.ToListAsync();
         }
 
-        // GET: api/Todo/5
-        [HttpGet("{id}")]
-        public async Task<ActionResult<TodoModel>> GetTodoModel(long id)
+        // POST: api/addTodo
+        [HttpPost("addTodo")]
+        public async Task<ActionResult<TodoModel>> PostTodoModel(TodoModel todoModel)
         {
-          if (_context.Todos == null)
-          {
-              return NotFound();
-          }
-            var todoModel = await _context.Todos.FindAsync(id);
-
-            if (todoModel == null)
+            if (_context.Todos == null)
             {
-                return NotFound();
+                return Problem("Entity set 'TodoContext.Todos'  is null.");
             }
+            _context.Todos.Add(todoModel);
+            await _context.SaveChangesAsync();
 
-            return todoModel;
+            return CreatedAtAction("GetTodoModel", new { id = todoModel.id }, todoModel);
         }
 
-        // PUT: api/Todo/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPut("{id}")]
-        public async Task<IActionResult> PutTodoModel(long id, TodoModel todoModel)
+        // PUT: api/updateTodo/5
+        [HttpPut("updateTodo/{id}")]
+        public async Task<ActionResult<TodoModel>> PutTodoModel(long id, TodoModel todoModel)
         {
             if (id != todoModel.id)
             {
@@ -64,6 +61,7 @@ namespace TodoApi.Controllers
             try
             {
                 await _context.SaveChangesAsync();
+                return Ok(todoModel);
             }
             catch (DbUpdateConcurrencyException)
             {
@@ -77,27 +75,11 @@ namespace TodoApi.Controllers
                 }
             }
 
-            return NoContent();
         }
 
-        // POST: api/Todo
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPost]
-        public async Task<ActionResult<TodoModel>> PostTodoModel(TodoModel todoModel)
-        {
-          if (_context.Todos == null)
-          {
-              return Problem("Entity set 'TodoContext.Todos'  is null.");
-          }
-            _context.Todos.Add(todoModel);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction("GetTodoModel", new { id = todoModel.id }, todoModel);
-        }
-
-        // DELETE: api/Todo/5
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteTodoModel(long id)
+        // DELETE: api/deleteTodo/5
+        [HttpDelete("deleteTodo/{id}")]
+        public async Task<ActionResult<object>> DeleteTodoModel(long id)
         {
             if (_context.Todos == null)
             {
@@ -109,10 +91,24 @@ namespace TodoApi.Controllers
                 return NotFound();
             }
 
-            _context.Todos.Remove(todoModel);
-            await _context.SaveChangesAsync();
+            try
+            {
+                _context.Todos.Remove(todoModel);
+                await _context.SaveChangesAsync();
+                return Ok(new { success = true, id = id });
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!TodoModelExists(id))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
 
-            return NoContent();
         }
 
         private bool TodoModelExists(long id)
